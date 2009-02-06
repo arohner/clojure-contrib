@@ -1,3 +1,71 @@
+(ns clojure.contrib.test-is.tests
+  (:use clojure.contrib.test-is))
+
+(in-ns 'user)
+
+(defn foo []
+  2)
+
+(defn bar[]
+  4)
+
+(in-ns 'clojure.contrib.test-is.tests)
+
+(defn throwing-report 
+  "a stubbed version of clojure.contrib.test-is/report, which is used to test 'called?'. Throws an exception on (report :fail ....)"
+  [verdict msg expected actual]
+  (if (not (= verdict :pass))
+    (throw (new java.lang.AssertionError msg))
+    true))
+
+(deftest simple-returns
+  (is (called? [[user/foo :returns 42]]
+    (is (= (user/foo) 42)))))
+
+(deftest failed-expectation-throws
+  (is (thrown? java.lang.AssertionError
+	 (binding [clojure.contrib.test-is/report throwing-report]
+	   (is (called? [[user/foo :returns 3]]
+	     (user/bar)))))))
+
+(deftest multi-call
+  (is (called? [[user/foo :returns 42]
+		[user/bar :returns 3.14]]
+	       (is (= (user/foo) 42))
+	       (is (= (user/bar) 3.14)))))
+
+(deftest passed-expectation-returns-true
+  (is (= (is (called? [[user/foo :returns 3]
+		[user/bar :returns 5]]
+	       (user/foo)
+	       (user/bar))) true)))
+
+(deftest partial-calls-fails
+  (is (thrown? java.lang.AssertionError
+    (binding [clojure.contrib.test-is/report throwing-report]
+      (is (called? [[user/foo :returns 3]
+		    [user/bar :returns 5]]
+		   (user/bar)))))))
+
+(deftest times-correct
+   (is (= (is (called? [[user/foo :times 2 :returns 3]]
+		       (user/foo)
+		       (user/foo)) true))))
+
+(deftest times-too-few
+  (is (thrown? java.lang.AssertionError
+    (binding [clojure.contrib.test-is/report throwing-report]
+      (is (called? [[user/foo :times 2 :returns 3]]
+	(user/foo)) false)))))
+
+(deftest times-too-many
+  (is (thrown? java.lang.AssertionError
+      (binding [clojure.contrib.test-is/report throwing-report]
+	(is (called? [[user/foo :times 2 :returns 3]]
+	  (user/foo)
+	  (user/foo)
+	  (user/foo)))))))
+	      
 ;;; test_is/tests.clj: unit tests for test_is.clj
 
 ;; by Stuart Sierra, http://stuartsierra.com/

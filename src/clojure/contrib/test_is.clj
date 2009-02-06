@@ -393,6 +393,65 @@
             (report :pass ~msg '~form e#)
             e#))))
 
+
+;; IS CALLED? SETUP
+(defstruct expectation-hash :times :called :failed)
+
+(defn expect-obj [[var & args]]
+  (let [opts (apply hash-map args)
+        state (ref (struct-map expectation-hash :name var :called 0 :failed [] :times (get opts :times 1)))]
+    {:fn (fn [& _]
+	   (dosync
+	    (alter state assoc :called (inc (@state :called))))
+	   (opts :returns))
+     :state state}))
+
+(defn validate-expectation 
+  "checks that the expectation was met. Returns true on success. Calls report on failure"
+  [expt]
+  (let [expected-calls (@(expt :state) :times)
+	actual-calls (@(expt :state) :called)]
+    (if (= expected-calls actual-calls)
+      (do
+	(report :pass (str (@(expt :state) :name) "was called correctly") nil nil)
+	true)
+      (do 
+	(report :fail (str (@(expt :state) :name) " was not called correctly") (str "called " expected-calls " times") (str "called " actual-calls " times"))
+	false))))
+
+(defmethod assert-expr 'called? [msg [called args & body]]
+;;   creates a stub function, binds it to an existing var and asserts
+;;   the stub fn was called the correct number of times.
+
+;;    (is (called? [[user/foo :times 2 :returns 42]
+;;                  [user/bar :times 1 :returns 3]]
+;;          (user/foo x y z)
+;;          (user/bar z)))
+
+;;   takes a vector of expectations, followed
+;;   by the body. A stub function is created for each expectation, and
+;;   the body is executed with the stubs bound.
+;;      
+;;   An expectation is a vector containing the name of the var, followed by optional key value pairs. Allowed options are:
+
+;;   :returns - sets the return value of the stub function. defaults to nil if not specified
+;;   :times - sets the number of times the fn must be called in order to pass the expectation. defaults to 1 if not specified
+
+  (let [quote-name (fn [sym] `(var ~sym))
+	get-name (fn [expt] (first expt))
+	names (into [] (map (comp quote-name get-name) args))]
+    `(let [expect-opts# (map rest ~args)
+	   expectations# (map (fn [name# arglist#] (expect-obj (cons name# arglist#))) ~names expect-opts#)
+	   fns# (map :fn expectations#)
+	   thread-bindings# (apply hash-map (interleave ~names fns#))]
+       (. clojure.lang.Var (pushThreadBindings thread-bindings#))
+       (try
+	~@body
+ 	(finally
+	 (. clojure.lang.Var (popThreadBindings))))
+       (every? validate-expectation expectations#))))
+
+
 (defmethod assert-expr 'thrown-with-msg? [msg form]
   ;; (is (thrown-with-msg? c re expr))
   ;; Asserts that evaluating expr throws an exception of class c.
@@ -565,3 +624,4 @@
   "Runs all tests in all namespaces; prints results."
   []
   (apply run-tests (all-ns)))
+
