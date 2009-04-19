@@ -31,6 +31,12 @@
 
 ;; Literals
 
+(deftest Literals
+  ; 'nil 'false 'true are reserved by Clojure and are not symbols
+  (is (= 'nil nil))
+  (is (= 'false false))
+  (is (= 'true true)) )
+
 ;; Strings
 
 (deftest Strings
@@ -58,6 +64,18 @@
   (is (instance? Long -2147483649))
   (is (instance? Long 9223372036854775807))
   (is (instance? Long -9223372036854775808))
+
+  ;; Numeric constants of different types don't wash out. Regression fixed in
+  ;; r1157. Previously the compiler saw 0 and 0.0 as the same constant and
+  ;; caused the sequence to be built of Doubles.
+  (let [x 0.0]
+    (let [sequence (loop [i 0 l '()]
+                     (if (< i 5)
+                       (recur (inc i) (conj l i))
+                       l))]
+      (is (= [4 3 2 1 0] sequence))
+      (is (every? #(instance? Integer %)
+                  sequence))))
 
   ; Read BigInteger
   (is (instance? BigInteger 9223372036854775808))
@@ -93,7 +111,6 @@
   (is (instance? BigDecimal -0.0M))
   (is (instance? BigDecimal -1.0M))
 )
-
 
 ;; Characters
 
@@ -172,7 +189,10 @@
 ;; Syntax-quote (`, note, the "backquote" character), Unquote (~) and
 ;; Unquote-splicing (~@)
 
-(deftest t-Syntax-quote)
+(deftest t-Syntax-quote
+  (are (= _1 _2)
+      `() ()    ; was NPE before SVN r1337
+  ))
 
 ;; (read)
 ;; (read stream)

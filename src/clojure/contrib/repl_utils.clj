@@ -9,10 +9,11 @@
 ; Utilities meant to be used interactively at the REPL
 
 (ns clojure.contrib.repl-utils
-  (:import (java.io LineNumberReader InputStreamReader PushbackReader)
+  (:import (java.io File LineNumberReader InputStreamReader PushbackReader)
            (java.lang.reflect Modifier Method Constructor)
            (clojure.lang RT))
   (:use [clojure.contrib.seq-utils :only (indexed)]
+        [clojure.contrib.javadoc.browse :only (browse-url)]
         [clojure.contrib.str-utils :only (str-join re-sub re-partition)]))
 
 (defn- sortable [t]
@@ -78,7 +79,7 @@
           (:member (nth members selector))
           (let [pred (if (ifn? selector)
                        selector
-                       #(re-seq (re-pattern (str "(?i)" selector)) (:name %)))]
+                       #(re-find (re-pattern (str "(?i)" selector)) (:name %)))]
             (println "=== " (Modifier/toString (.getModifiers c)) c " ===")
             (doseq [[i m] (indexed members)]
               (when (pred m)
@@ -94,22 +95,16 @@
   Example: (get-source 'filter)"
   [x]
   (when-let [v (resolve x)]
-    (let [ns-str (str (ns-name (:ns ^v)))
-          path (first (re-seq #"^.*(?=/[^/]*$)"
-                              (-> ns-str
-                                (.replace "." "/")
-                                (.replace "-" "_"))))
-          fname (str path "/" (:file ^v))]
-      (when-let [strm (.getResourceAsStream (RT/baseLoader) fname)]
-        (with-open [rdr (LineNumberReader. (InputStreamReader. strm))]
-          (dotimes [_ (dec (:line ^v))] (.readLine rdr))
-          (let [text (StringBuilder.)
-                pbr (proxy [PushbackReader] [rdr]
-                      (read [] (let [i (proxy-super read)]
-                                 (.append text (char i))
-                                 i)))]
-            (read (PushbackReader. pbr))
-            (str text)))))))
+    (when-let [strm (.getResourceAsStream (RT/baseLoader) (:file ^v))]
+      (with-open [rdr (LineNumberReader. (InputStreamReader. strm))]
+        (dotimes [_ (dec (:line ^v))] (.readLine rdr))
+        (let [text (StringBuilder.)
+              pbr (proxy [PushbackReader] [rdr]
+                    (read [] (let [i (proxy-super read)]
+                               (.append text (char i))
+                               i)))]
+          (read (PushbackReader. pbr))
+          (str text))))))
 
 (defmacro source
   "Prints the source code for the given symbol, if it can find it.
@@ -119,3 +114,37 @@
   Example: (source filter)"
   [n]
   `(println (or (get-source '~n) (str "Source not found"))))
+
+
+(def #^{:doc "Threads to stop when Ctrl-C is pressed.  See 'add-break-thread!'"}
+  break-threads (ref nil))
+
+(defn start-handling-break
+  "Register INT signal handler.  After calling this, Ctrl-C will cause
+  all break-threads to be stopped.  See 'add-break-thread!'"
+  []
+  (when-not
+    (dosync
+      (if-let [inited @break-threads]
+        inited
+        (ref-set break-threads {})))
+    (sun.misc.Signal/handle
+      (sun.misc.Signal. "INT")
+      (proxy [sun.misc.SignalHandler] []
+        (handle [sig]
+          (let [exc (Exception. (str sig))]
+            (doseq [tref (vals @break-threads) :when (.get tref)]
+              (.stop (.get tref) exc))))))))
+
+(defn add-break-thread!
+  "Add the given thread to break-threads so that it will be stopped
+  any time the user presses Ctrl-C.  Calls start-handling-break for
+  you.  Adds the current thread if none is given."
+  ([] (add-break-thread! (Thread/currentThread)))
+  ([t]
+    (start-handling-break)
+    (let [tref (java.lang.ref.WeakReference. t)]
+      (dosync (commute break-threads assoc (.getId t) tref)))))
+
+
+(load "repl_utils/javadoc")

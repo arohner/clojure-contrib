@@ -1,7 +1,7 @@
 ;; Monads in Clojure
 
 ;; by Konrad Hinsen
-;; last updated January 29, 2009
+;; last updated March 24, 2009
 
 ;; Copyright (c) Konrad Hinsen, 2009. All rights reserved.  The use
 ;; and distribution terms for this software are covered by the Eclipse
@@ -59,10 +59,9 @@
    monad comprehension expression mexpr."
   [mexpr step]
   (let [[bform expr] step]
-    (if (identical? bform :when)
-      (list 'm-bind `(if ~expr (~'m-result ::any) ~'m-zero)
-	    (list 'fn ['_] mexpr))
-      (list 'm-bind expr (list 'fn [bform] mexpr)))))
+    (cond (identical? bform :when)  `(if ~expr ~mexpr ~'m-zero)
+	  (identical? bform :let)   `(let ~expr ~mexpr)
+	  :else (list 'm-bind expr (list 'fn [bform] mexpr)))))
 
 (defn- monad-expr
    "Transforms a monad comprehension, consisting of a list of steps
@@ -73,9 +72,19 @@
    [steps expr]
    (when (odd? (count steps))
      (throw (Exception. "Odd number of elements in monad comprehension steps")))
-   (reduce add-monad-step
-     (list 'm-result expr)
-     (reverse (partition 2 steps))))
+   (let [rsteps (reverse (partition 2 steps))
+	 [lr ls] (first rsteps)]
+     (if (= lr expr)
+       ; Optimization: if the result expression is equal to the result
+       ; of the last computation step, we can eliminate an m-bind to
+       ; m-result.
+       (reduce add-monad-step
+	       ls
+	       (rest rsteps))
+       ; The general case.
+       (reduce add-monad-step
+	       (list 'm-result expr)
+	       rsteps))))
 
 (defmacro with-monad
    "Evaluates an expression after replacing the keywords defining the
@@ -92,10 +101,13 @@
    "Monad comprehension. Takes the name of a monad, a vector of steps
     given as binding-form/monadic-expression pairs, and a result value
     specified by expr. The monadic-expression terms can use the binding
-    variables of the previous steps. If the monad contains a definition
-    of :zero, the step list can also contain conditions of the form [:when p],
-    where the predicate p can contain the binding variables from all previous
-    steps."
+    variables of the previous steps.
+    If the monad contains a definition of m-zero, the step list can also
+    contain conditions of the form :when p, where the predicate p can
+    contain the binding variables from all previous steps.
+    A clause of the form :let [binding-form expr ...], where the bindings
+    are given as a vector as for the use in let, establishes additional
+    bindings that can be used in the following steps."
    ([steps expr]
     (monad-expr steps expr))
    ([name steps expr]
@@ -117,9 +129,8 @@
       `(defmonadfn ~doc-name ~args ~expr)))
 
   ([name args expr]
-   (let [fn-name (symbol (format "m+%s+m" (str name)))]
+   (let [fn-name (symbol (str *ns*) (format "m+%s+m" (str name)))]
    `(do
-      (def ~fn-name nil)
       (defmacro ~name ~args
         (list (quote ~fn-name)
 	      '~'m-bind '~'m-result '~'m-zero '~'m-plus
@@ -159,7 +170,7 @@
   (reduce (fn [q p]
 	    (m-bind p (fn [x]
 			(m-bind q (fn [y]
-				    (m-result (lazy-cons x y)))) )))
+				    (m-result (cons x y)))) )))
 	  (m-result '())
 	  (reverse ms)))
 
@@ -198,8 +209,18 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; Identity monad
+(defmonad identity-m
+   "Monad describing plain computations. This monad does in fact nothing
+    at all. It is useful for testing, for combination with monad
+    transformers, and for code that is parameterized with a monad."
+  [m-result identity
+   m-bind   (fn m-result-id [mv f]
+	      (f mv))
+  ])
+
 ; Maybe monad
-(defmonad maybe
+(defmonad maybe-m
    "Monad describing computations with possible failures. Failure is
     represented by nil, any other value is considered valid. As soon as
     a step returns nil, the whole computation will yield nil as well."
@@ -212,7 +233,7 @@
     ])
 
 ; Sequence monad (called "list monad" in Haskell)
-(defmonad sequence
+(defmonad sequence-m
    "Monad describing multi-valued computations, i.e. computations
     that can yield multiple values. Any object implementing the seq
     protocol can be used as a monadic value."
@@ -225,12 +246,25 @@
                (apply concat mvs))
     ])
 
+; Set monad
+(defmonad set-m
+   "Monad describing multi-valued computations, like sequence-m,
+    but returning sets of results instead of sequences of results."
+   [m-result (fn m-result-set [v]
+	       #{v})
+    m-bind   (fn m-bind-set [mv f]
+               (apply clojure.set/union (map f mv)))
+    m-zero   #{}
+    m-plus   (fn m-plus-set [& mvs]
+               (apply clojure.set/union mvs))
+    ])
+
 ; State monad
-(defmonad state
+(defmonad state-m
    "Monad describing stateful computations. The monadic values have the
     structure (fn [old-state] (list result new-state))."
    [m-result  (fn m-result-state [v]
-	        (fn [s] (list v s)))
+	        (fn [s] [v s]))
     m-bind    (fn m-bind-state [mv f]
 	        (fn [s]
 		  (let [[v ss] (mv s)]
@@ -238,16 +272,43 @@
    ])
 
 (defn update-state [f]
-  (fn [s] (list s (f s))))
+  "Return a state-monad function that replaces the current state by the
+   result of f applied to the current state and that returns the old state."
+  (fn [s] [s (f s)]))
 
 (defn set-state [s]
+  "Return a state-monad function that replaces the current state by s and
+   returns the previous state."
   (update-state (fn [_] s)))
 
 (defn fetch-state []
+  "Return a state-monad function that returns the current state and does not
+   modify it."
   (update-state identity))
 
+(defn fetch-val [key]
+  "Return a state-monad function that assumes the state to be a map and
+   returns the value corresponding to the given key. The state is not modified."
+  (domonad state-m
+    [s (fetch-state)]
+    (key s)))
+
+(defn update-val [key f]
+  "Return a state-monad function that assumes the state to be a map and
+   replaces the value associated with the given key by the return value
+   of f applied to the old value. The old value is returned."
+  (fn [s]
+    (let [old-val (get s key)
+	  new-s   (assoc s key (f old-val))]
+      [old-val new-s])))
+
+(defn set-val [key val]
+  "Return a state-monad function that assumes the state to be a map and
+   replaces the value associated with key by val. The old value is returned."
+  (update-val key (fn [_] val)))
+
 ; Writer monad
-(defn writer
+(defn writer-m
   "Monad describing computations that accumulate data on the side, e.g. for
    logging. The monadic values have the structure [value log]. Any of the
    accumulators from clojure.contrib.accumulators can be used for storing the
@@ -274,15 +335,15 @@
 
 ; Continuation monad
 
-(defmonad cont
+(defmonad cont-m
   "Monad describing computations in continuation-passing style. The monadic
    values are functions that are called with a single argument representing
    the continuation of the computation, to which they pass their result."
-  [m-result   (fn [v]
+  [m-result   (fn m-result-cont [v]
 		(fn [c] (c v)))
-   m-bind     (fn [mv f]
+   m-bind     (fn m-bind-cont [mv f]
 		(fn [c]
-		  (mv (fn [a] ((f a) c)))))
+		  (mv (fn [v] ((f v) c)))))
    ])
 
 (defn run-cont
@@ -364,3 +425,31 @@
 			       (fn [xs]
 				 (apply concat (map f xs))))))
 	  ]))
+
+;; Contributed by Jim Duey
+(defn state-t
+  "Monad transformer that transforms a monad m into a monad of stateful
+  computations that have the base monad type as their result."
+  [m]
+  (monad [m-result (with-monad m
+		     (fn m-result-state-t [v]
+                       (fn [s]
+			 (m-result [v s]))))
+	  m-bind   (with-monad m
+                     (fn m-bind-state-t [stm f]
+                       (fn [s]
+                         (m-bind (stm s)
+                                 (fn [[v ss]]
+                                   ((f v) ss))))))
+          m-zero   (with-monad m
+                     (if (= ::undefined m-zero)
+		       ::undefined
+		       (fn [s]
+			 m-zero)))
+          m-plus   (with-monad m
+                     (if (= ::undefined m-plus)
+		       ::undefined
+		       (fn [& stms]
+			 (fn [s]
+			   (apply m-plus (map #(% s) stms))))))
+          ]))

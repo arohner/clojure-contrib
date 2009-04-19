@@ -1,9 +1,9 @@
-<project name="clojure-contrib" default="jar">
+<project name="clojure-contrib" default="jar" xmlns:mvn="urn:maven-artifact-ant">
 
   <description>
     Pack all clojure-contrib sources into a JAR. Compile those that can
     be compiled standalone if the clojure.jar property points us to
-    clojure.jar .
+    clojure.jar.
   </description>
 
   <property name="src" location="src"/>
@@ -13,6 +13,12 @@
 
   <!-- The JAR file to create. -->
   <property name="jarfile" location="clojure-contrib.jar"/>
+  <property name="slimjarfile" location="clojure-contrib-slim.jar"/>
+
+  <!-- These make sense for building on tapestry.formos.com -->
+
+  <property name="snapshot.repo.dir" location="/var/www/maven-snapshot-repository"/>
+  <property name="stable.repo.dir" location="/var/www/maven-repository"/>
 
   <target name="init">
     <tstamp/>
@@ -21,39 +27,65 @@
 
   <target name="clean" description="Remove generated files and directories.">
     <delete file="${jarfile}"/>
+    <delete file="${slimjarfile}"/>
     <delete dir="${build}"/>
   </target>
 
   <target name="test_clojure"
-	  description = "Run clojure tests"
-	  if="hasclojure">
+          description="Run clojure tests"
+          if="hasclojure">
     <java classname="clojure.main">
       <classpath>
         <path location="${build}"/>
         <path location="${src}"/>
         <path location="${clojure.jar}"/>
       </classpath>
-      <arg value="src/clojure/contrib/test_clojure.clj"/>
+      <arg value="-e"/>
+      <arg value="(require '(clojure.contrib [test-clojure :as main])) (main/run)"/>
     </java>
   </target>
 
   <target name="test_contrib"
-	  description = "Run contrib tests"
-	  if="hasclojure">
+          description="Run contrib tests"
+          if="hasclojure">
     <java classname="clojure.main">
       <classpath>
         <path location="${build}"/>
         <path location="${src}"/>
         <path location="${clojure.jar}"/>
       </classpath>
-      <arg value="src/clojure/contrib/test_contrib.clj"/>
+      <arg value="-e"/>
+      <arg value="(require '(clojure.contrib [test-contrib :as main])) (main/run)"/>
     </java>
   </target>
 
-  <target name="test" depends="test_clojure,test_contrib"
-	  description="Run all tests"/>
+  <target name="test_datalog"
+          description="Run datalog tests"
+          if="hasclojure">
+    <java classname="clojure.main">
+      <classpath>
+        <path location="${build}"/>
+        <path location="${src}"/>
+        <path location="${clojure.jar}"/>
+      </classpath>
+      <arg value="-e"/>
+      <arg value="(require '(clojure.contrib.datalog.tests [test :as main])) (main/run)"/>
+    </java>
+  </target>
 
-  <target name="compile_clojure" depends="init"
+  <target name="test" depends="test_clojure,test_contrib,test_datalog"
+          description="Run all tests"/>
+
+  <target name="check_hasclojure"
+          description="Print a warning message if clojure.jar is undefined"
+          unless="hasclojure">
+    <echo>WARNING: You have not defined a path to clojure.jar so I can't compile files.
+      This will cause some parts of clojure.contrib not to work (e.g., pretty print).
+      To enable compiling, run "ant -Dclojure.jar=&lt;...path to clojure.jar..&gt;"
+    </echo>
+  </target>
+
+  <target name="compile_clojure" depends="init,check_hasclojure"
           description="Compile Clojure sources."
           if="hasclojure">
     <java classname="clojure.lang.Compile">
@@ -65,34 +97,60 @@
       <sysproperty key="clojure.compile.path" value="${build}"/>
       <arg value="clojure.contrib.accumulators"/>
       <arg value="clojure.contrib.command-line"/>
+      <arg value="clojure.contrib.complex-numbers"/>
       <arg value="clojure.contrib.cond"/>
+      <arg value="clojure.contrib.core"/>
       <arg value="clojure.contrib.def"/>
       <arg value="clojure.contrib.duck-streams"/>
       <arg value="clojure.contrib.except"/>
       <arg value="clojure.contrib.fcase"/>
+      <arg value="clojure.contrib.generic"/>
+      <arg value="clojure.contrib.generic.arithmetic"/>
+      <arg value="clojure.contrib.generic.collection"/>
+      <arg value="clojure.contrib.generic.comparison"/>
+      <arg value="clojure.contrib.generic.functor"/>
+      <arg value="clojure.contrib.generic.math-functions"/>
       <arg value="clojure.contrib.import-static"/>
-      <arg value="clojure.contrib.javadoc"/>
+      <arg value="clojure.contrib.javadoc.browse"/>
+      <arg value="clojure.contrib.javadoc.browse-ui"/>
       <arg value="clojure.contrib.lazy-seqs"/>
       <arg value="clojure.contrib.mmap"/>
       <arg value="clojure.contrib.macros"/>
       <arg value="clojure.contrib.monads"/>
       <arg value="clojure.contrib.ns-utils"/>
+      <arg value="clojure.contrib.pprint.ColumnWriter"/>
+      <arg value="clojure.contrib.pprint.PrettyWriter"/>
+      <arg value="clojure.contrib.pprint"/>
+      <arg value="clojure.contrib.pprint.utilities"/>
       <arg value="clojure.contrib.probabilities.dist"/>
       <arg value="clojure.contrib.prxml"/>
       <arg value="clojure.contrib.repl-ln"/>
       <arg value="clojure.contrib.repl-utils"/>
       <arg value="clojure.contrib.seq-utils"/>
+      <arg value="clojure.contrib.set"/>
       <arg value="clojure.contrib.server-socket"/>
       <arg value="clojure.contrib.sql.internal"/>
       <arg value="clojure.contrib.sql"/>
       <arg value="clojure.contrib.str-utils"/>
+      <arg value="clojure.contrib.stream-utils"/>
+      <arg value="clojure.contrib.test-clojure"/>
       <arg value="clojure.contrib.test-is"/>
       <arg value="clojure.contrib.trace"/>
+      <arg value="clojure.contrib.types"/>
       <arg value="clojure.contrib.zip-filter"/>
+      <arg value="clojure.contrib.graph"/>
+      <arg value="clojure.contrib.datalog"/>
+      <arg value="clojure.contrib.datalog.database"/>
+      <arg value="clojure.contrib.datalog.literals"/>
+      <arg value="clojure.contrib.datalog.magic"/>
+      <arg value="clojure.contrib.datalog.rules"/>
+      <arg value="clojure.contrib.datalog.softstrat"/>
+      <arg value="clojure.contrib.datalog.util"/>
+      <arg value="clojure.contrib.dataflow"/>
     </java>
   </target>
 
-  <target name="jar" description="Create jar file." depends="compile_clojure">
+  <target name="jar" description="Create jar files." depends="compile_clojure">
     <jar jarfile="${jarfile}">
       <fileset file="epl-v10.html"/>
       <fileset dir="${src}" includes="**/*.clj"/>
@@ -101,6 +159,56 @@
         <attribute name="Class-Path" value="."/>
       </manifest>
     </jar>
+
+    <jar jarfile="${slimjarfile}">
+      <fileset file="epl-v10.html"/>
+      <fileset dir="${src}" includes="**/*.clj"/>
+      <manifest>
+        <attribute name="Class-Path" value="."/>
+      </manifest>
+    </jar>
+
   </target>
+
+  <target name="-setup-maven" description="Load Maven typedefs, read POM, establish dependencies.">
+    <typedef resource="org/apache/maven/artifact/ant/antlib.xml" uri="urn:maven-artifact-ant"/>
+
+    <mvn:pom file="pom.xml" id="contrib.pom"/>
+
+    <mvn:dependencies pomRefId="contrib.pom"/>
+  </target>
+
+  <target name="clean-build" depends="clean,compile_clojure,test,jar"
+          description="Builds clojure-contrib from scratch and runs all tests."/>
+
+  <target name="ci-build" depends="-setup-maven"
+          description="Build clojure-contrib using Clojure obtained via Maven.">
+    <antcall target="clean-build">
+      <param name="clojure.jar" value="${org.clojure:clojure-lang:jar}"/>
+    </antcall>
+    <mvn:install file="${jarfile}" pomrefid="contrib.pom">
+      <attach file="${slimjarfile}" classifier="slim"/>
+    </mvn:install>
+  </target>
+
+  <macrodef name="deploy">
+    <attribute name="target-dir" description="Root of Maven repository"/>
+    <sequential>
+      <mvn:deploy file="${jarfile}" pomrefid="contrib.pom">
+        <attach file="${slimjarfile}" classifier="slim"/>
+        <remoteRepository url="file:@{target-dir}"/>
+      </mvn:deploy>
+    </sequential>
+  </macrodef>
+
+  <target name="nightly-build" depends="ci-build"
+          description="Build and deploy to nightly (snapshot) repository.">
+    <deploy target-dir="${snapshot.repo.dir}"/>
+  </target>
+
+  <target name="stable-build" depends="ci-build" description="Build and deploy to stable repository.">
+    <deploy target-dir="${stable.repo.dir}"/>
+  </target>
+
 
 </project>

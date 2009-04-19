@@ -14,15 +14,50 @@
 ;;  Created 22 October 2008
 
 (ns clojure.contrib.test-clojure
-  (:use clojure.contrib.test-is))
+  (:use [clojure.contrib.test-is :only (run-tests)])
+  (:gen-class))
 
-(def tests [:for :reader :printer :numbers :evaluation :sequences])
+(def test-names
+     [:reader
+      :printer
+      :evaluation
+      :special
+      :ns-libs
+      :logic
+      :predicates
+      :control
+      :data-structures
+      :numbers
+      :sequences
+      :for
+      :multimethods
+      :other-functions
+      :vars
+      :refs
+      :agents
+      :atoms
+      :parallel
+      :java-interop
+      ;; libraries
+      :clojure-main
+      :clojure-set
+      :clojure-xml
+      :clojure-zip
+      ])
 
-(defn test-name
-  [test]
-  (symbol (str "clojure.contrib.test-clojure." (name test))))
+(def test-namespaces
+     (map #(symbol (str "clojure.contrib.test-clojure." (name %)))
+          test-names))
 
-(doseq [test tests]
-  (require (test-name test)))
+(defn run
+  "Runs all defined tests"
+  []
+  (println "Loading tests...")
+  (apply require :reload-all test-namespaces)
+  (apply run-tests test-namespaces))
 
-(apply run-tests (map test-name tests))
+(defn -main
+  "Run all defined tests from the command line"
+  [& args]
+  (run)
+  (System/exit 0))

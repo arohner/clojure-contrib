@@ -12,26 +12,11 @@
 ;;  Created 3 October 2008
 
 (ns clojure.contrib.sql.internal
-  (:use [clojure.contrib.except :only (throw-arg)]))
+  (:use (clojure.contrib
+         [except :only (throw-arg)]
+         [java-utils :only (as-properties)])))
 
 (def *db* {:connection nil :level 0})
-
-(defn the-str
-  "Returns the name or string representation of x"
-  [x]
-  (if (instance? clojure.lang.Named x)
-    (name x)
-    (str x)))
-
-(defn properties
-  "Converts a map from keywords, symbols, or strings to values into a
-  java.util.Properties object that maps the key names to the values with
-  all represented as strings."
-  [m]
-  (let [p (java.util.Properties.)]
-    (doseq [[key val] (seq m)]
-      (.setProperty p (the-str key) (the-str val)))
-    p))
 
 (defn find-connection*
   "Returns the current database connection (or nil if there is none)"
@@ -75,7 +60,7 @@
       (.getConnection datasource))
     (java.sql.DriverManager/getConnection
      (format "jdbc:%s:%s" subprotocol subname)
-     (properties (dissoc db-spec :classname :subprotocol :subname)))))
+     (as-properties (dissoc db-spec :classname :subprotocol :subname)))))
 
 (defn with-connection*
   "Evaluates func in the context of a new connection to a database then

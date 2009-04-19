@@ -10,6 +10,7 @@
 ;;   otherwise returns a double.
 ;; abs - (abs n) is the absolute value of n
 ;; gcd - (gcd m n) returns the greatest common divisor of m and n
+;; lcm - (lcm m n) returns the least common multiple of m and n
 
 ;; The behavior of the next three functions on doubles is consistent
 ;; with the behavior of the corresponding functions
@@ -121,12 +122,21 @@ round always returns an integer.  Rounds up for values exactly in between two in
       (if (zero? b) a,
 	  (recur b (mod a b))))))
 
+(defn lcm
+  "(lcm a b) returns the least common multiple of a and b"
+  [a b]
+  (when (or (not (integer? a)) (not (integer? b)))
+    (throw (IllegalArgumentException. "lcm requires two integers")))
+  (cond (zero? a) 0
+        (zero? b) 0
+        :else (abs (* b (quot a (gcd a b))))))
+
 ; Length of integer in binary, used as helper function for sqrt.
 (defmulti #^{:private true} integer-length class)
 (defmethod integer-length java.lang.Integer [n]
   (count (Integer/toBinaryString n)))
 (defmethod integer-length java.lang.Long [n]
-  (count (Integer/toBinaryString n)))
+  (count (Long/toBinaryString n)))
 (defmethod integer-length java.math.BigInteger [n]
   (count (. n toString 2)))
 

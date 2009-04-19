@@ -15,12 +15,17 @@
 
 (ns clojure.contrib.miglayout.internal
   (:import (java.awt Component))
-  (:use (clojure.contrib except fcase)))
+  (:use (clojure.contrib
+         [except :only (throwf)]
+         [fcase :only (fcase)]
+         [java-utils :only (as-str)])))
+
+(declare format-constraints)
 
 (defn format-constraint
   "Returns a vector of vectors representing one or more constraints
   separated by commas. Constraints may be specified in Clojure using
-  strings, keywords, vectors, and/or maps."
+  strings, keywords, vectors, maps, and/or sets."
   [c]
   [[", "]
    (fcase #(%1 %2) c
@@ -28,22 +33,21 @@
      keyword? [c]
      vector?  (interpose " " c)
      map?     (apply concat (interpose [", "] (map #(interpose " " %) c)))
+     set?     (apply concat (interpose [", "] (map format-constraints c)))
      (throwf IllegalArgumentException
              "unrecognized constraint: %s (%s)" c (class c)))])
-
-(defn the-str
-  "Returns the string for x--its name if it's a keyword."
-  [x]
-  ((if (keyword? x) name str) x))
 
 (defn format-constraints
   "Returns a string representing all the constraints for one keyword-item
   or component formatted for miglayout."
   [& constraints]
-  (apply str
-         (map the-str
-              (rest (reduce concat []
-                            (mapcat format-constraint constraints))))))
+  (let [formatted
+        (apply str
+          (map as-str
+            (rest (reduce concat []
+              (mapcat format-constraint constraints)))))]
+    ;(prn formatted)
+    formatted))
 
 (defn component?
   "Returns true if x is a java.awt.Component"
@@ -58,18 +62,18 @@
        (#{:layout :column :row} x))))
 
 (defn parse-item-constraints
-  "Iterates over args and builds a map containing :keywords, a map of from
-  keyword-item to constraints string and :components, a vector of vectors
-  each associating a component with its constraints string. :components is
-  a vector because ordering of components matters."
+  "Iterates over args and builds a map containing values associated with
+  :keywords and :components. The value for :keywords is a map from keyword
+  items to constraints strings. The value for :components is a vector of
+  vectors each associating a component with its constraints string."
   [& args]
   (loop [[item & args] args
-         item-constraints {:components [] :keyword-items {}}]
+         item-constraints {:keywords {} :components []}]
     (if item
       (let [[constraints args] (split-with constraint? args)]
         (recur args
           (update-in
            item-constraints
-           [(if (component? item) :components :keyword-items)]
+           [(if (component? item) :components :keywords)]
            conj [item (apply format-constraints constraints)])))
       item-constraints)))

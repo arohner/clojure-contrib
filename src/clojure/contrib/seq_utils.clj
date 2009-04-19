@@ -1,7 +1,7 @@
 ;;; seq_utils.clj -- Sequence utilities for Clojure
 
 ;; by Stuart Sierra, http://stuartsierra.com/
-;; last updated January 10, 2009
+;; last updated March 2, 2009
 
 ;; Copyright (c) Stuart Sierra, 2008. All rights reserved.  The use
 ;; and distribution terms for this software are covered by the Eclipse
@@ -77,7 +77,8 @@
   (when-let [s (seq coll)]
     (let [fv (f (first s))
           run (take-while #(= fv (f %)) s)]
-      (lazy-cons run (partition-by f (drop (count run) s))))))
+      (lazy-seq
+       (cons run (partition-by f (drop (count run) s)))))))
 
 (defn frequencies
   "Returns a map from distinct items in coll to the number of times
@@ -89,27 +90,19 @@
 
 ;; recursive sequence helpers by Christophe Grand
 ;; see http://clj-me.blogspot.com/2009/01/recursive-seqs.html
+(defmacro rec-seq 
+ "Similar to lazy-seq but binds the resulting seq to the supplied 
+  binding-name, allowing for recursive expressions."
+ [binding-name & body]
+  `(let [s# (atom nil)]
+     (reset! s# (lazy-seq (let [~binding-name @s#] ~@body)))))
+             
 (defmacro rec-cat 
- "Similar to lazy-cat but binds the resulting sequence using the supplied 
-  binding-form, allowing recursive expressions. The first collection 
-  expression must not be recursive and must yield a non-nil seq."
- [binding-form expr & rec-exprs]
-  `(let [rec-rest# (atom nil)
-         result# (lazy-cat ~expr (force @rec-rest#))
-         ~binding-form result#]
-     (swap! rec-rest# (constantly (delay (lazy-cat ~@rec-exprs))))
-     result#))
+ "Similar to lazy-cat but binds the resulting sequence to the supplied 
+  binding-name, allowing for recursive expressions."
+ [binding-name & exprs]
+  `(rec-seq ~binding-name (lazy-cat ~@exprs)))
          
-(defmacro rec-cons 
- "Similar to lazy-cons but binds the resulting sequence using the supplied 
-  binding-form, allowing recursive expressions. The first expression must 
-  not be recursive."
- [binding-form expr & rec-exprs]
-  `(let [rec-rest# (atom nil)
-         result# (lazy-cons ~expr (force @rec-rest#))
-         ~binding-form result#]
-     (swap! rec-rest# (constantly (delay (lazy-cat ~@rec-exprs))))
-     result#))
      
 ;; reductions by Chris Houser
 ;; see http://groups.google.com/group/clojure/browse_thread/thread/3edf6e82617e18e0/58d9e319ad92aa5f?#58d9e319ad92aa5f
@@ -118,7 +111,59 @@
   per reduce) of coll by f, starting with init."
   ([f coll]
    (if (seq coll)
-     (rec-cons self (first coll) (map f self (rest coll)))
+     (rec-seq self (cons (first coll) (map f self (rest coll))))
      (cons (f) nil)))
   ([f init coll]
-   (rec-cons self init (map f self coll))))
+   (rec-seq self (cons init (map f self coll)))))
+
+(defn rotations
+  "Returns a lazy seq of all rotations of a seq"
+  [x]
+  (if (seq x)
+    (map
+     (fn [n _]
+       (lazy-cat (drop n x) (take n x)))
+     (iterate inc 0) x)
+    (list nil)))
+
+(defn partition-all
+  "Returns a lazy sequence of lists like clojure.core/partition, but may
+  include lists with fewer than n items at the end."
+  ([n coll]
+     (partition-all n n coll))
+  ([n step coll]
+     (lazy-seq
+      (when-let [s (seq coll)]
+        (cons (take n s) (partition-all n step (drop step s)))))))
+  
+(defn shuffle
+  "Return a random permutation of coll"
+  [coll]
+  (let [l (java.util.ArrayList. coll)]
+    (java.util.Collections/shuffle l)
+    (seq l)))
+
+(defn rand-elt
+  "Return a random element of this seq"
+  [s]
+  (nth s (rand-int (count s))))
+
+
+;; seq-on writte by Konrad Hinsen
+(defmulti seq-on
+  "Returns a seq on the object s. Works like the built-in seq but as
+   a multimethod that can have implementations for new classes and types."
+  {:arglists '([s])}
+  type)
+
+(defmethod seq-on :default
+  [s]
+  (seq s))
+
+
+(defn find-first
+  "Returns the first item of coll for which (pred item) returns logical true.
+  Consumes sequences up to the first match, will consume the entire sequence
+  and return nil if no match is found."
+  [pred coll]
+  (first (filter pred coll)))

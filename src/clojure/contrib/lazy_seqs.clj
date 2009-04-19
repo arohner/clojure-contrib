@@ -21,10 +21,8 @@
 ;;
 ;;  == Lazy sequence functions ==
 ;;
-;;  rotations - returns a lazy seq of all the rotations of a seq
-;;
-;;  (permutations and combinations used to be here, but have
-;;  been moved to combinatorics.clj)
+;;  (rotations, partition-all, shuffle, rand-elt  moved to seq_utils.clj)
+;;  (permutations and combinations moved to combinatorics.clj)
 ;;
 ;;  [1] http://www.cs.hmc.edu/~oneill/papers/Sieve-JFP.pdf
 ;;  [2] http://clj-me.blogspot.com/2008/06/primes.html
@@ -35,58 +33,32 @@
 (ns clojure.contrib.lazy-seqs
   (:use clojure.contrib.def))
 
+; primes cannot be written efficiently as a function, because
+; it needs to look back on the whole sequence. contrast with
+; fibs and powers-of-2 which only need a fixed buffer of 1 or 2
+; previous values.
 (defvar primes
-  (lazy-cat [2 3 5 7]
+  (concat 
+   [2 3 5 7]
+   (lazy-seq
     (let [primes-from
-          (fn primes-from [n [f & r]]
-            (if (some #(zero? (rem n %))
-                      (take-while #(<= (* % %) n) primes))
-              (recur (+ n f) r)
-              (lazy-cons n (primes-from (+ n f) r))))
-          wheel (cycle [2 4 2 4 6 2 6 4 2 4 6 6 2 6  4  2
-                        6 4 6 8 4 2 4 2 4 8 6 4 6 2  4  6
-                        2 6 6 4 2 4 6 2 6 4 2 4 2 10 2 10])]
-      (primes-from 11 wheel)))
-  "A lazy sequence of all the prime numbers.")
+	  (fn primes-from [n [f & r]]
+	    (if (some #(zero? (rem n %))
+		      (take-while #(<= (* % %) n) primes))
+	      (recur (+ n f) r)
+	      (lazy-seq (cons n (primes-from (+ n f) r)))))
+	  wheel (cycle [2 4 2 4 6 2 6 4 2 4 6 6 2 6  4  2
+			6 4 6 8 4 2 4 2 4 8 6 4 6 2  4  6
+			2 6 6 4 2 4 6 2 6 4 2 4 2 10 2 10])]
+      (primes-from 11 wheel))))
+  "Lazy sequence of all the prime numbers.")
 
-(defvar fibs
-  (lazy-cat [0 1] (map + fibs (rest fibs)))
-  "A lazy sequence of all the fibonacci numbers.")
+(defn fibs []
+  "Returns a lazy sequence of all the Fibonacci numbers."
+  (map first (iterate (fn [[a b]] [b (+ a b)]) [0 1])))
 
-(defvar powers-of-2
-  (lazy-cons 1 (map #(bit-shift-left % 1) powers-of-2))
-  "A lazy sequence of all the powers of 2")
-
-(defn rotations
-  "Returns a lazy seq of all rotations of a seq"
-  [x]
-  (if (seq x)
-    (map
-     (fn [n _]
-       (lazy-cat (drop n x) (take n x)))
-     (iterate inc 0) x)
-    (list nil)))
+(defn powers-of-2 []
+  "Returns a lazy sequence of all the powers of 2"
+  (iterate #(bit-shift-left % 1) 1))
 
 
-;; See combinatorics.clj for faster versions of these functions.
-
-;; (defn permutations
-;;   "Returns a lazy seq of all permutations of a seq"
-;;   [x]
-;;   (if (seq x)
-;;     (mapcat
-;;      (fn [[f & r]]
-;;        (map #(cons f %) (permutations r)))
-;;      (rotations x))
-;;     (list nil)))
-
-;; (defn combinations
-;;   "Returns a lazy seq of all combinations built of one item from each seq given.
-;;    See also (doc for)"
-;;   [& acs]
-;;   (let [step (fn step [head [s & cs :as acs]]
-;;                (if acs
-;;                  (mapcat #(step (conj head %) cs) s)
-;;                  (list head)))]
-;;     (when acs
-;;       (step [] acs))))

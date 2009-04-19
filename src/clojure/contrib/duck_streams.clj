@@ -1,7 +1,7 @@
 ;;; duck_streams.clj -- duck-typed I/O streams for Clojure
 
 ;; by Stuart Sierra, http://stuartsierra.com/
-;; January 10, 2009
+;; February 16, 2009
 
 ;; Copyright (c) Stuart Sierra, 2008. All rights reserved.  The use
 ;; and distribution terms for this software are covered by the Eclipse
@@ -26,6 +26,9 @@
 
 ;; CHANGE LOG
 ;;
+;; February 16, 2009: (lazy branch) fixed read-lines to work with lazy
+;; Clojure.
+;;
 ;; January 10, 2009: added *default-encoding*, so streams are always
 ;; opened as UTF-8.
 ;;
@@ -38,7 +41,7 @@
 
 (ns clojure.contrib.duck-streams
     (:import 
-     (java.io Reader InputStream InputStreamReader 
+     (java.io Reader InputStream InputStreamReader PushbackReader
               BufferedReader File PrintWriter OutputStream
               OutputStreamWriter BufferedWriter Writer
               FileInputStream FileOutputStream)
@@ -75,7 +78,8 @@
   closed."}
   reader class)
 
-(defmethod reader Reader [x] x)
+(defmethod reader Reader [x]
+  (BufferedReader. x))
 
 (defmethod reader InputStream [x]
   (BufferedReader. (InputStreamReader. x *default-encoding*)))
@@ -151,7 +155,6 @@
   (throw (Exception. (str "Cannot open <" (pr-str x) "> as a writer."))))
 
 
-
 (defn write-lines
   "Writes lines (a seq) to f, separated by newlines.  f is opened with
   writer."
@@ -168,9 +171,10 @@
   closes the reader AFTER YOU CONSUME THE ENTIRE SEQUENCE."
   [f]
   (let [read-line (fn this [#^BufferedReader rdr]
-                    (if-let [line (.readLine rdr)]
-                        (lazy-cons line (this rdr))
-                      (.close rdr)))]
+                    (lazy-seq
+                     (if-let [line (.readLine rdr)]
+                       (cons line (this rdr))
+                       (.close rdr))))]
     (read-line (reader f))))
 
 (defn slurp*
@@ -196,3 +200,19 @@
   Note: In Java, you cannot change the current working directory."
   []
   (System/getProperty "user.dir"))
+
+
+
+(defmacro with-out-writer
+  "Opens a writer on f, binds it to *out*, and evalutes body."
+  [f & body]
+  `(with-open [stream# (writer ~f)]
+     (binding [*out* stream#]
+       ~@body)))
+
+(defmacro with-in-reader
+  "Opens a PushbackReader on f, binds it to *in*, and evaluates body."
+  [f & body]
+  `(with-open [stream# (PushbackReader. (reader ~f))]
+     (binding [*in* stream#]
+       ~@body)))

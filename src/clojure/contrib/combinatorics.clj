@@ -12,7 +12,7 @@ Example: (combinations [1 2 3] 2) -> ((1 2) (1 3) (2 3))
 
 (subsets items) - A lazy sequence of all the subsets of
 items (but generalized to all sequences, not just sets).
-Example: (subsets [1 2 3]) -> (nil (1) (2) (3) (1 2) (1 3) (2 3) (1 2 3))
+Example: (subsets [1 2 3]) -> (() (1) (2) (3) (1 2) (1 3) (2 3) (1 2 3))
 
 (cartesian-product & seqs) - Takes any number of sequences
 as arguments, and returns a lazy sequence of all the ways
@@ -40,7 +40,7 @@ Example: (lex-permutations [1 1 2]) -> ([1 1 2] [1 2 1] [2 1 1])
 
 About permutations vs. lex-permutations:
 lex-permutations is faster than permutations, but only works
-on sequences with comparable elements.  They operate differently
+on sequences of numbers.  They operate differently
 on sequences with duplicate items (lex-permutations will only
 give you back distinct permutations).  lex-permutations always
 returns the permutations sorted lexicographically whereas
@@ -56,7 +56,7 @@ I also restricted myself to algorithms that return results in a standard order. 
 
 Most of these algorithms are derived from algorithms found in Knuth's wonderful Art of Computer Programming books (specifically, the volume 4 fascicles), which present fast, iterative solutions to these common combinatorial problems.  Unfortunately, these iterative versions are somewhat inscrutable.  If you want to better understand these algorithms, the Knuth books are the place to start.
 
-On my own computer, I use versions of all these algorithms that return sequences built with lazy-seq, an uncached variation of lazy-cons.  Not only does this boost performance, but it's easier to use these rather large sequences more safely (from a memory consumption standpoint).  Since Rich has said he may drop support for lazy-seq in the future, I went back to lazy-cons for this public contrib release.  I hope lazy-seq sticks around, in which case, I will update this accordingly.
+On my own computer, I use versions of all these algorithms that return sequences built with an uncached variation of lazy-seq.  Not only does this boost performance, but it's easier to use these rather large sequences more safely (from a memory consumption standpoint).  If some form of uncached sequences makes it into Clojure, I will update this accordingly.
 "
 )
 
@@ -65,27 +65,28 @@ On my own computer, I use versions of all these algorithms that return sequences
 
 (defn- index-combinations
   [n cnt]
-  (let [c (vec (cons nil (for [j (range 1 (inc n))] (+ j cnt (- (inc n)))))),
-	iter-comb
-	(fn iter-comb [c j]
-	  (if (> j n) nil
-	      (let [c (assoc c j (dec (c j)))]
-		(if (< (c j) j) [c (inc j)]
-		    (loop [c c, j j]
-		      (if (= j 1) [c j]
-			  (recur (assoc c (dec j) (dec (c j))) (dec j)))))))),
-	step
-	(fn step [c j]
-	  (lazy-cons (rseq (subvec c 1 (inc n)))
-		     (let [next-step (iter-comb c j)]
-		       (when next-step (step (next-step 0) (next-step 1))))))]
-    (step c 1)))
+  (lazy-seq
+   (let [c (vec (cons nil (for [j (range 1 (inc n))] (+ j cnt (- (inc n)))))),
+	 iter-comb
+	 (fn iter-comb [c j]
+	   (if (> j n) nil
+	       (let [c (assoc c j (dec (c j)))]
+		 (if (< (c j) j) [c (inc j)]
+		     (loop [c c, j j]
+		       (if (= j 1) [c j]
+			   (recur (assoc c (dec j) (dec (c j))) (dec j)))))))),
+	 step
+	 (fn step [c j]
+	   (cons (rseq (subvec c 1 (inc n)))
+		 (lazy-seq (let [next-step (iter-comb c j)]
+			     (when next-step (step (next-step 0) (next-step 1)))))))]
+     (step c 1))))
 
 (defn combinations
   "All the unique ways of taking n different elements from items"
   [items n]      
   (let [v-items (vec (reverse items))]
-    (if (zero? n) (list nil)
+    (if (zero? n) (list ())
 	(let [cnt (count items)]
 	  (cond (> n cnt) nil
 		(= n cnt) (list (seq items))
@@ -108,14 +109,14 @@ On my own computer, I use versions of all these algorithms that return sequences
 		(fn [v-seqs]
 		  (loop [i (dec (count v-seqs)), v-seqs v-seqs]
 		    (if (= i -1) nil
-			(if-let [rst (rest (v-seqs i))]
+			(if-let [rst (next (v-seqs i))]
 			  (assoc v-seqs i rst)
 			  (recur (dec i) (assoc v-seqs i (v-original-seqs i)))))))]
-	    (if (nil? v-seqs) nil
-		(lazy-cons (map first v-seqs)
-			   (step (increment v-seqs))))))]
+	    (when v-seqs
+	       (cons (map first v-seqs)
+		     (lazy-seq (step (increment v-seqs)))))))]
     (when (every? first seqs)
-      (step v-original-seqs))))
+      (lazy-seq (step v-original-seqs)))))
 
 
 (defn selections
@@ -140,12 +141,16 @@ On my own computer, I use versions of all these algorithms that return sequences
 	    v))))))
 
 (defn- vec-lex-permutations [v]
-  (when v (lazy-cons v (vec-lex-permutations (iter-perm v)))))
+  (when v (cons v (lazy-seq (vec-lex-permutations (iter-perm v))))))
 
 (defn lex-permutations
-  "Fast lexicographic permutation generator for a sequence of comparable items"
+  "Fast lexicographic permutation generator for a sequence of numbers"
   [c]
-  (vec-lex-permutations (vec (sort c))))
+  (lazy-seq
+   (let [vec-sorted (vec (sort c))]
+     (if (zero? (count vec-sorted))
+       (list [])
+       (vec-lex-permutations vec-sorted)))))
   
 (defn permutations
   "All the permutations of items, lexicographic by index"

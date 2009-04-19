@@ -35,12 +35,13 @@
   [#^Pattern re string]
   (let [m (re-matcher re string)]
     ((fn step [prevend]
-       (if (.find m)
-         (lazy-cons (.subSequence string prevend (.start m))
-                    (lazy-cons (re-groups m)
-                               (step (+ (.start m) (count (.group m))))))
-         (when (< prevend (.length string))
-           (list (.subSequence string prevend (.length string))))))
+       (lazy-seq
+        (if (.find m)
+          (cons (.subSequence string prevend (.start m))
+                (cons (re-groups m)
+                      (step (+ (.start m) (count (.group m))))))
+          (when (< prevend (.length string))
+            (list (.subSequence string prevend (.length string)))))))
      0)))
 
 (defn re-gsub 
@@ -82,3 +83,15 @@
   'separator'.  Like Perl's 'join'."
   [separator sequence]
   (apply str (interpose separator sequence)))
+
+
+(defn chop
+  "Removes the last character of string."
+  [s]
+  (subs s 0 (dec (count s))))
+
+(defn chomp
+  "Removes all trailing newline \\n or return \\r characters from
+  string.  Note: String.trim() is similar and faster."
+  [s]
+  (re-sub #"[\r\n]+$" "" s))

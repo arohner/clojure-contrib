@@ -7,7 +7,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (ns clojure.contrib.monads.examples
-  (:use clojure.contrib.monads)
+  (:use [clojure.contrib.monads
+	 :only (domonad with-monad m-lift m-seq m-when
+		sequence-m
+		maybe-m
+		state-m fetch-state set-state 
+		writer-m write
+		cont-m run-cont call-cc
+		maybe-t)])
   (:require (clojure.contrib [accumulators :as accu])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -24,27 +31,36 @@
 ; Monad comprehensions in the sequence monad work exactly the same
 ; as Clojure's 'for' construct, except that :while clauses are not
 ; available.
-(domonad sequence
+(domonad sequence-m
    [x (range 5)
     y (range 3)]
     (+ x y))
 
 ; Inside a with-monad block, domonad is used without the monad name.
-(with-monad sequence
+(with-monad sequence-m
   (domonad
      [x (range 5)
       y (range 3)]
      (+ x y)))
 
-(domonad sequence
+; Conditions are written with :when, as in Clojure's for form:
+(domonad sequence-m
    [x  (range 5)
     y  (range (+ 1 x))
-    :when  (= (+ x y) 2)]
+    :when (= (+ x y) 2)]
    (list x y))
 
+; :let is also supported like in for:
+(domonad sequence-m
+   [x  (range 5)
+    y  (range (+ 1 x))
+    :let [sum (+ x y)
+	  diff (- x y)]
+    :when  (= sum 2)]
+   (list diff))
+
 ; An example of a sequence function defined in terms of a lift operation.
-; We use m-lift2 because we have to lift a function of two arguments.
-(with-monad sequence
+(with-monad sequence-m
    (defn pairs [xs]
       ((m-lift 2 #(list %1 %2)) xs xs)))
 
@@ -54,14 +70,14 @@
 ; a sequence of monadic values and returns a monadic value containing
 ; the sequence of the underlying values, obtained from chaining together
 ; from left to right the monadic values in the sequence.
-(with-monad sequence
+(with-monad sequence-m
    (defn pairs [xs]
       (m-seq (list xs xs))))
 
 (pairs (range 5))
 
 ; This definition suggests a generalization:
-(with-monad sequence
+(with-monad sequence-m
    (defn ntuples [n xs]
       (m-seq (replicate n xs))))
 
@@ -69,13 +85,13 @@
 (ntuples 3 (range 5))
 
 ; Lift operations can also be used inside a monad comprehension:
-(domonad sequence
+(domonad sequence-m
    [x  ((m-lift 1 (partial * 2)) (range 5))
     y  (range 2)]
     [x y])
 
 ; The m-plus operation does concatenation in the sequence monad.
-(domonad sequence
+(domonad sequence-m
    [x  ((m-lift 2 +) (range 5) (range 3))
     y  (m-plus (range 2) '(10 11))]
    [x y])
@@ -88,7 +104,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; Maybe monad versions of basic arithmetic
-(with-monad maybe
+(with-monad maybe-m
    (def m+ (m-lift 2 +))
    (def m- (m-lift 2 -))
    (def m* (m-lift 2 *)))
@@ -98,7 +114,7 @@
 ; is attempted. It is best defined by a monad comprehension with a
 ; :when clause:
 (defn safe-div [x y]
-  (domonad maybe
+  (domonad maybe-m
      [a x
       b y
       :when (not (zero? b))]
@@ -106,7 +122,7 @@
 
 ; Now do some non-trivial computation with division
 ; It fails for (1) x = 0, (2) y = 0 or (3) y = -x.
-(with-monad maybe
+(with-monad maybe-m
    (defn some-function [x y]
       (let [one (m-result 1)]
  	   (safe-div one (m+ (safe-div one (m-result x))
@@ -120,7 +136,7 @@
 
 ; In the maybe monad, m-plus selects the first monadic value that
 ; holds a valid value.
-(with-monad maybe
+(with-monad maybe-m
    (m-plus (some-function 2 0) (some-function 2 -2) (some-function 2 3)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -146,13 +162,14 @@
   (let [m      259200
 	value  (/ (float seed) (float m))
 	next   (rem (+ 54773 (* 7141 seed)) m)]
-    (list value next)))
+    [value next]))
 
 ; We define a convenience function that creates an infinite lazy seq
 ; of values obtained from iteratively applying a state monad value.
 (defn value-seq [f seed]
-  (let [[value next] (f seed)]
-    (lazy-cons value (value-seq f next))))
+  (lazy-seq
+    (let [[value next] (f seed)]
+      (cons value (value-seq f next)))))
 
 ; Next, we define basic statistics functions to check our random numbers
 (defn sum [xs]  (apply + xs))
@@ -175,7 +192,7 @@
 ; In the first version, we call rng 12 times explicitly and calculate the
 ; shifted sum in a monad comprehension:
 (def gaussian1
-   (domonad state
+   (domonad state-m
       [x1  rng
        x2  rng
        x3  rng
@@ -201,7 +218,7 @@
 ; More precisely, we need (m-lift 2 +), because we want both arguments
 ; of + to be lifted to the state monad:
 (def gaussian2
-   (domonad state
+   (domonad state-m
       [sum12 (reduce (m-lift 2 +) (replicate 12 rng))]
       (- sum12 6.)))
 
@@ -212,7 +229,7 @@
 
 ; We can also do the subtraction of 6 in a lifted function, and get rid
 ; of the monad comprehension altogether:
-(with-monad state
+(with-monad state-m
    (def gaussian3
         ((m-lift 1 #(- % 6.))
            (reduce (m-lift 2 +) (replicate 12 rng)))))
@@ -224,7 +241,7 @@
 ; For a random point in two dimensions, we'd like a random number generator
 ; that yields a list of two random numbers. The m-seq operation can easily
 ; provide it:
-(with-monad state
+(with-monad state-m
    (def rng2 (m-seq (list rng rng))))
 
 ; Let's test it:
@@ -233,7 +250,7 @@
 ; fetch-state and get-state can be used to save the seed of the random
 ; number generator and go back to that saved seed later on:
 (def identical-random-seqs
-  (domonad state
+  (domonad state-m
     [seed (fetch-state)
      x1   rng
      x2   rng
@@ -251,7 +268,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; A basic logging example
-(domonad (writer accu/empty-string)
+(domonad (writer-m accu/empty-string)
   [x (m-result 1)
    _ (write "first step\n")
    y (m-result 2)
@@ -282,7 +299,7 @@
 ; vector accumulator. We can then place calls to write in between the
 ; steps, and obtain as a result both the return value of the function
 ; and the accumulated trace values.
-(with-monad (writer accu/empty-vector)
+(with-monad (writer-m accu/empty-vector)
 
   (defn fib-trace [n]
     (if (< n 2)
@@ -319,20 +336,20 @@
 ; lead immediately to a nil result in the output.
 
 ; First we define the combined monad:
-(def seq-maybe (maybe-t sequence))
+(def seq-maybe-m (maybe-t sequence-m))
 
 ; As a first illustration, we create a range of integers and replace
 ; all even values by nil, using a simple when expression. We use this
 ; sequence in a monad comprehension that yields (inc x). The result
 ; is a sequence in which inc has been applied to all non-nil values,
 ; whereas the nil values appear unmodified in the output:
-(domonad seq-maybe
+(domonad seq-maybe-m
   [x  (for [n (range 10)] (when (odd? n) n))]
   (inc x))
 
 ; Next we repeat the definition of the function pairs (see above), but
 ; using the seq-maybe monad:
-(with-monad seq-maybe
+(with-monad seq-maybe-m
    (defn pairs-maybe [xs]
       (m-seq (list xs xs))))
 
@@ -359,7 +376,7 @@
 ; a function that behaves in the same way, passing 3 to its function
 ; argument. run-cont executes a continuation by calling it on identity.
 (run-cont
-  (domonad cont
+  (domonad cont-m
     [x (m-result 1)
      y (m-result 2)]
     (+ x y)))
@@ -371,7 +388,7 @@
 (def continuation nil)
 
 (run-cont
-  (domonad cont
+  (domonad cont-m
     [x (m-result 1)
      y (call-cc (fn [c] (def continuation c) (c 2)))]
     (+ x y)))
@@ -387,7 +404,7 @@
 (defn sqrt-as-str [x]
   (call-cc
    (fn [k]
-     (domonad cont
+     (domonad cont-m
        [_ (m-when (< x 0) (k (str "negative argument " x)))]
        (str (. Math sqrt x))))))
 

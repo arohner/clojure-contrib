@@ -1,7 +1,7 @@
 ;; Finite probability distributions
 
 ;; by Konrad Hinsen
-;; last updated January 30, 2009
+;; last updated March 2, 2009
 
 ;; Copyright (c) Konrad Hinsen, 2009. All rights reserved.  The use
 ;; and distribution terms for this software are covered by the Eclipse
@@ -12,22 +12,23 @@
 ;; remove this notice, or any other, from this software.
 
 (ns clojure.contrib.probabilities.dist
-  (:use clojure.contrib.monads clojure.contrib.macros
-	clojure.contrib.monads clojure.contrib.def))
+  (:use [clojure.contrib.monads
+	 :only (defmonad domonad with-monad maybe-t m-lift m-chain)]
+	 [clojure.contrib.def :only (defvar)]))
 
 ; The probability distribution monad. It is limited to finite probability
 ; distributions (e.g. there is a finite number of possible value), which
 ; are represented as maps from values to probabilities.
 
-(defmonad dist
+(defmonad dist-m
   "Monad describing computations on fuzzy quantities, represented by a finite
    probability distribution for the possible values. A distribution is
    represented by a map from values to probabilities."
   [m-result (fn m-result-dist [v]
-       {v 1})
+	      {v 1})
    m-bind   (fn m-bind-dist [mv f]
-	      (letfn [add-prob [dist [x p]]
-		        (assoc dist x (+ (get dist x 0) p))]
+	      (letfn [(add-prob [dist [x p]]
+		         (assoc dist x (+ (get dist x 0) p)))]
 	        (reduce add-prob {}
 		        (for [[x p] mv  [y q] (f x)]
 			  [y (* q p)]))))
@@ -39,8 +40,8 @@
 ; The function normalize takes this probability out of the distribution and
 ; re-distributes its weight over the valid values.
 
-(defvar cond-dist
-  (maybe-t dist)
+(defvar cond-dist-m
+  (maybe-t dist-m)
   "Variant of the dist monad that can handle undefined values.")
 
 ; Normalization
@@ -91,15 +92,15 @@
    pairs. In the last pair, the probability can be given by the keyword
    :else, which stands for 1 minus the total of the other probabilities."
   [& choices]
-  (letfn [add-choice [dist [p v]]
+  (letfn [(add-choice [dist [p v]]
 	    (cond (nil? p) dist
 		  (= p :else)
-		       (let [total-p (reduce + (vals dist))]
-		         (assoc dist v (- 1 total-p)))
-		  :else (assoc dist v p))]
+		        (let [total-p (reduce + (vals dist))]
+			  (assoc dist v (- 1 total-p)))
+		  :else (assoc dist v p)))]
     (reduce add-choice {} (partition 2 choices))))
 
-(with-monad dist
+(with-monad dist-m
 
   (defn certainly
     "Returns a distribution in which the single value v has probability 1."
@@ -118,7 +119,7 @@
    the predicate pred."
   [pred dist]
   (normalize-cond
-    (with-monad cond-dist
+    (with-monad cond-dist-m
       (m-bind dist (fn [v] (m-result (when (pred v) v)))))))
 
 ; Select (with equal probability) N items from a sequence
@@ -129,13 +130,13 @@
   (let [[h t] (split-at n xs)]
     (list (first t) (concat h (rest t)))))
 
-(with-monad dist
+(with-monad dist-m
 
   (defn- select-n [n xs]
-    (letfn [select-1 [[s xs]]
+    (letfn [(select-1 [[s xs]]
 	      (uniform (for [i (range (count xs))]
 			 (let [[nth rest] (nth-and-rest i xs)]
-			   (list (cons nth s) rest))))]
+			   (list (cons nth s) rest)))))]
       ((m-chain (replicate n select-1)) (list '() xs))))
 
   (defn select [n xs]
