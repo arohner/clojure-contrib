@@ -5,43 +5,35 @@
 ;;  using this software in any fashion, you are agreeing to be bound by the
 ;;  terms of this license.  You must not remove this notice, or any other,
 ;;  from this software.
-;;
-;;  ns-utils
-;;
-;;  Namespace Utilities
-;;
-;;    'get-ns'          returns the namespace named by a symbol or throws
-;;                      if the namespace does not exist
-;;
-;;    'ns-vars'         returns a sorted seq of symbols naming public vars
-;;                      in a namespace
-;;
-;;    'print-dir'       prints a sorted directory of public vars in a
-;;                      namespace
-;;
-;;    'print-docs'      prints documentation for the public vars in a
-;;                      namespace
-;;
-;;    'immigrate'       Create a public var in this namespace for each
-;;                      public var in the namespaces named by ns-names.
-;;                      From James Reeves
-;;  Convenience
-;;
-;;    'vars'            returns a sorted seq of symbols naming public vars
-;;                      in a namespace (macro)
-;;
-;;    'dir'             prints a sorted directory of public vars in a
-;;                      namespace (macro)
-;;
-;;    'docs'            prints documentation for the public vars in a
-;;                      namespace (macro)
-;;
+
 ;;  scgilardi (gmail)
 ;;  23 April 2008
 
+;;  DEPRECATED in 1.2: dir and print-dir. Use dir and dir-fn in
+;;  clojure.repl.
+
 (ns 
   ^{:author "Stephen C. Gilardi",
-     :doc "Namespace utilities"}
+    :doc "Namespace utilities
+
+  get-ns          returns the namespace named by a symbol or throws
+                  if the namespace does not exist
+
+  ns-vars         returns a sorted seq of symbols naming public vars
+                  in a namespace
+
+  print-docs      prints documentation for the public vars in a
+                  namespace
+
+  immigrate       Create a public var in this namespace for each
+                  public var in the namespaces named by ns-names.
+                  From James Reeves
+
+  vars            returns a sorted seq of symbols naming public vars
+                  in a namespace (macro)
+
+  docs            prints documentation for the public vars in a
+                  namespace (macro)"}
   clojure.contrib.ns-utils
   (:use clojure.contrib.except))
 
@@ -63,6 +55,7 @@
 
 (defn print-dir
   "Prints a sorted directory of public vars in a namespace"
+  {:deprecated "1.2"}
   [ns]
   (doseq [item (ns-vars ns)]
     (println item)))
@@ -83,6 +76,7 @@
 
 (defmacro dir
   "Prints a sorted directory of public vars in a namespace"
+  {:deprecated "1.2"}
   [nsname]
   `(print-dir (get-ns '~nsname)))
 
