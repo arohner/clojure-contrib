@@ -92,7 +92,7 @@
   open database connection. Each param-group is a seq of values for all of
   the parameters."
   [sql & param-groups]
-  (with-open [stmt (.prepareStatement (connection) sql)]
+  (with-open [stmt (.prepareStatement #^java.sql.Connection (connection) sql)]
     (doseq [param-group param-groups]
       (doseq [[index value] (map vector (iterate inc 1) param-group)]
         (.setObject stmt index value))

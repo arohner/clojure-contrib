@@ -152,7 +152,7 @@
   [func]
   (binding [*db* (update-in *db* [:level] inc)]
     (if (= (:level *db*) 1)
-      (let [con (connection*)
+      (let [con #^java.sql.Connection (connection*)
             auto-commit (.getAutoCommit con)]
         (io!
          (.setAutoCommit con false)
