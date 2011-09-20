@@ -108,7 +108,8 @@
  ^{:doc "If true, writer, output-stream and spit will open files in append mode.
           Defaults to false.  Instead of binding this var directly, use append-writer,
           append-output-stream or append-spit."
-    :tag "java.lang.Boolean"}
+   :tag "java.lang.Boolean"
+   :dynamic true}
  *append* false)
 
 (defn- assert-not-appending []

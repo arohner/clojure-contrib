@@ -77,7 +77,7 @@
 
 ;;; Debuging and Tracing
 
-(def *trace-datalog* nil)
+(def ^{:dynamic true} *trace-datalog* nil)
 
 (defmacro trace-datalog
   "If *test-datalog* is set to true, run the enclosed commands"

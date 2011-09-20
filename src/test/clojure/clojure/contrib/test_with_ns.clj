@@ -10,9 +10,12 @@
     (testing "when an exception is thrown"
       (let [ns-name-str
             (try
-             (with-temp-ns
-               (throw (RuntimeException. (str (ns-name *ns*)))))
-             (catch clojure.lang.Compiler$CompilerException e
-               (-> e .getCause .getMessage)))]
+              (with-temp-ns
+                (println "*ns*=" *ns*)
+                (println "ns-name:" (ns-name *ns*))
+                (throw (RuntimeException. (str (ns-name *ns*)))))
+              (catch RuntimeException e
+                (println "caught: " e)
+                (-> e .getMessage)))]
         (is (re-find #"^sym.*$" ns-name-str))
         (is (not (some #{(symbol ns-name-str)} (all-ns-names))))))))

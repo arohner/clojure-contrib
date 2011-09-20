@@ -41,11 +41,14 @@
 ; form, imitating dynamic scoping.
 ;
 ; Local macros.
-(defvar- macro-fns {})
+(def ^{:private true
+       :dynamic true} macro-fns {})
 ; Local symbol macros.
-(defvar- macro-symbols {})
+(def ^{:private true
+       :dynamic true} macro-symbols {})
 ; Symbols defined inside let forms or function arguments.
-(defvar- protected-symbols #{})
+(def ^{:dynamic true
+       :private true} protected-symbols #{})
 
 (defn- reserved?
   [symbol]

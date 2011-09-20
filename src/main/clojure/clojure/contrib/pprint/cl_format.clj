@@ -61,7 +61,8 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
         navigator (init-navigator args)]
     (execute-format writer compiled-format navigator)))
 
-(def ^{:private true} *format-str* nil)
+(def ^{:private true
+       :dynamic true} *format-str* nil)
 
 (defn- format-error [message offset] 
   (let [full-message (str message \newline *format-str* \newline 

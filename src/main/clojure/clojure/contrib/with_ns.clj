@@ -30,9 +30,9 @@
   removed.  The temporary namespace will 'refer' clojure.core."
   [& body]
   `(try
-    (create-ns 'sym#)
-    (let [result# (with-ns 'sym#
-                    (clojure.core/refer-clojure)
-                    ~@body)]
-      result#)
-    (finally (remove-ns 'sym#))))
+     (create-ns 'sym#)
+     (let [result# (with-ns 'sym#
+                     (clojure.core/refer-clojure)
+                     ~@body)]
+       result#)
+     (finally (remove-ns 'sym#))))

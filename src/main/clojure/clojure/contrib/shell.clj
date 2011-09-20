@@ -21,8 +21,8 @@ collecting its stdout"}
   clojure.contrib.shell
   (:import (java.io InputStreamReader OutputStreamWriter)))
 
-(def *sh-dir* nil)
-(def *sh-env* nil)
+(def ^{:dynamic true} *sh-dir* nil)
+(def ^{:dynamic true} *sh-env* nil)
 
 (defmacro with-sh-dir [dir & forms]
   "Sets the directory for use with sh, see sh for details."

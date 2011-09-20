@@ -35,6 +35,7 @@
   docs            prints documentation for the public vars in a
                   namespace (macro)"}
   clojure.contrib.ns-utils
+  (:require clojure.repl)
   (:use clojure.contrib.except))
 
 ;; Namespace Utilities
@@ -64,7 +65,7 @@
   "Prints documentation for the public vars in a namespace"
   [ns]
   (doseq [item (ns-vars ns)]
-    (print-doc (ns-resolve ns item))))
+    ((var clojure.repl/print-doc) (ns-resolve ns item))))
 
 ;; Convenience
 
@@ -96,5 +97,5 @@
     (doseq [[sym var] (ns-publics ns)]
       (let [sym (with-meta sym (assoc (meta var) :ns *ns*))]
         (if (.hasRoot var)
-          (intern *ns* sym (.getRoot var))
+          (intern *ns* sym (.getRawRoot var))
           (intern *ns* sym))))))

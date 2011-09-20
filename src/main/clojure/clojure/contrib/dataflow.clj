@@ -71,7 +71,7 @@
 
 ;; A sentinal value
 
-(def *empty-value* (java.lang.Object.))
+(def ^{:dynamic true} *empty-value* (java.lang.Object.))
 
 
 ;; Dataflow

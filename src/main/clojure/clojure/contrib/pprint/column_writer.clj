@@ -19,7 +19,7 @@
    [clojure.lang IDeref]
    [java.io Writer]))
 
-(def *default-page-width* 72)
+(def ^{:dynamic true} *default-page-width* 72)
 
 (defn- get-field [^Writer this sym]
   (sym @@this))

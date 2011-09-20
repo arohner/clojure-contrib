@@ -268,7 +268,7 @@
     (pprint-simple-code-list alis)))
 
 ;;; The map of symbols that are defined in an enclosing #() anonymous function
-(def *symbol-map* {})
+(def ^{:dynamic true} *symbol-map* {})
 
 (defn pprint-anon-func [alis]
   (let [args (second alis)
