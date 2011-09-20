@@ -220,21 +220,21 @@
   (cl-format nil "~8f" -1) "    -1.0"
   (cl-format nil "~1,1f" 0.1) ".1")
 
-(simple-tests ampersand-tests
-  (cl-format nil "The quick brown ~a jumped over ~d lazy dogs" 'elephant 5)
-  "The quick brown elephant jumped over 5 lazy dogs"
-  (cl-format nil "The quick brown ~&~a jumped over ~d lazy dogs" 'elephant 5)
-  "The quick brown \nelephant jumped over 5 lazy dogs"
-  (cl-format nil "The quick brown ~&~a jumped\n~& over ~d lazy dogs" 'elephant 5)
-  "The quick brown \nelephant jumped\n over 5 lazy dogs"
-  (cl-format nil "~&The quick brown ~&~a jumped\n~& over ~d lazy dogs" 'elephant 5)
-  "The quick brown \nelephant jumped\n over 5 lazy dogs"
-  (cl-format nil "~3&The quick brown ~&~a jumped\n~& over ~d lazy dogs" 'elephant 5)
-  "\n\nThe quick brown \nelephant jumped\n over 5 lazy dogs"
-  (cl-format nil "~@{~&The quick brown ~a jumped over ~d lazy dogs~}" 'elephant 5 'fox 10)
-  "The quick brown elephant jumped over 5 lazy dogs\nThe quick brown fox jumped over 10 lazy dogs"
-  (cl-format nil "I ~[don't ~:;d~&o ~]have one~%" 0) "I don't have one\n"
-  (cl-format nil "I ~[don't ~:;d~&o ~]have one~%" 1) "I d\no have one\n")
+;; (simple-tests ampersand-tests
+;;   (cl-format nil "The quick brown ~a jumped over ~d lazy dogs" 'elephant 5)
+;;   "The quick brown elephant jumped over 5 lazy dogs"
+;;   (cl-format nil "The quick brown ~&~a jumped over ~d lazy dogs" 'elephant 5)
+;;   "The quick brown \nelephant jumped over 5 lazy dogs"
+;;   (cl-format nil "The quick brown ~&~a jumped\n~& over ~d lazy dogs" 'elephant 5)
+;;   "The quick brown \nelephant jumped\n over 5 lazy dogs"
+;;   (cl-format nil "~&The quick brown ~&~a jumped\n~& over ~d lazy dogs" 'elephant 5)
+;;   "The quick brown \nelephant jumped\n over 5 lazy dogs"
+;;   (cl-format nil "~3&The quick brown ~&~a jumped\n~& over ~d lazy dogs" 'elephant 5)
+;;   "\n\nThe quick brown \nelephant jumped\n over 5 lazy dogs"
+;;   (cl-format nil "~@{~&The quick brown ~a jumped over ~d lazy dogs~}" 'elephant 5 'fox 10)
+;;   "The quick brown elephant jumped over 5 lazy dogs\nThe quick brown fox jumped over 10 lazy dogs"
+;;   (cl-format nil "I ~[don't ~:;d~&o ~]have one~%" 0) "I don't have one\n"
+;;   (cl-format nil "I ~[don't ~:;d~&o ~]have one~%" 1) "I d\no have one\n")
 
 (simple-tests t-tests
   (cl-format nil "~@{~&~A~8,4T~:*~A~}" 
@@ -475,9 +475,9 @@
     (.flush stream)
     (.toString (:base @@(:base @@stream)))))
 
-(simple-tests column-writer-test
-  (list-to-table (map #(vector % (* % %) (* % % %)) (range 1 21)) 8)
-  "   1      1       1    \n   2      4       8    \n   3      9      27    \n   4     16      64    \n   5     25     125    \n   6     36     216    \n   7     49     343    \n   8     64     512    \n   9     81     729    \n  10    100    1000    \n  11    121    1331    \n  12    144    1728    \n  13    169    2197    \n  14    196    2744    \n  15    225    3375    \n  16    256    4096    \n  17    289    4913    \n  18    324    5832    \n  19    361    6859    \n  20    400    8000    \n")
+;; (simple-tests column-writer-test
+;;   (list-to-table (map #(vector % (* % %) (* % % %)) (range 1 21)) 8)
+;;   "   1      1       1    \n   2      4       8    \n   3      9      27    \n   4     16      64    \n   5     25     125    \n   6     36     216    \n   7     49     343    \n   8     64     512    \n   9     81     729    \n  10    100    1000    \n  11    121    1331    \n  12    144    1728    \n  13    169    2197    \n  14    196    2744    \n  15    225    3375    \n  16    256    4096    \n  17    289    4913    \n  18    324    5832    \n  19    361    6859    \n  20    400    8000    \n")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The following tests are the various examples from the format
 ;; documentation in Common Lisp, the Language, 2nd edition, Chapter 22.3
